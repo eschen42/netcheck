@@ -141,8 +141,8 @@ START_WEBSERVER() {
     VAR_PYTHON_EXEC=python
   fi
 
-  echo VAR_PYTHON_EXEC is $VAR_PYTHON_EXEC
-  echo VAR_WEB_PORT is $VAR_WEB_PORT
+  #ACE echo VAR_PYTHON_EXEC is $VAR_PYTHON_EXEC
+  #ACE echo VAR_WEB_PORT is $VAR_WEB_PORT
 
   # Find python version and start corresponding webserver
   VAR_PYTHON_VERSION=$($VAR_PYTHON_EXEC -c 'import sys; print(sys.version_info[0])')
