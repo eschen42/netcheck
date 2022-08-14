@@ -8,14 +8,21 @@
 
 VAR_SCRIPTNAME=`basename "$0"`
 VAR_SCRIPTLOC="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-VAR_CONNECTED=true
-VAR_LOGFILE=log/connection.log
-VAR_SPEEDTEST_DISABLED=false
+
 VAR_CHECK_TIME=5
-VAR_HOST=http://www.google.com
-VAR_ENABLE_WEBINTERFACE=false
-VAR_WEB_PORT=9000
+VAR_CONNECTED=true
 VAR_CUSTOM_WEB_PORT=false
+VAR_ENABLE_WEBINTERFACE=false
+VAR_HOST=http://www.google.com
+VAR_LOGFILE=log/connection.log
+VAR_SPEEDCHECK_COUNTER=0
+VAR_SPEEDCHECK_FACTOR=-1
+VAR_SPEEDTEST_DISABLED=false
+VAR_WEB_PORT=9000
+
+if [[ -e netcheckrc ]]; then
+  . netcheckrc
+fi
 
 COLOR_RED="\033[31m"
 COLOR_GREEN="\033[32m"
@@ -41,8 +48,9 @@ PRINT_HELP() {
   echo "$VAR_SCRIPTNAME -h                                           Display this message"
   echo "$VAR_SCRIPTNAME -f path/my_log_file.log          Specify log file and path to use"
   echo "$VAR_SCRIPTNAME -s                                 Disable speedtest on reconnect"
-  echo "$VAR_SCRIPTNAME -c                Check connection ever (n) seconds. Default is 5"
-  echo "$VAR_SCRIPTNAME -u            URL/Host to check, default is http://www.google.com"
+  echo "$VAR_SCRIPTNAME -c n            Check connection every (n) seconds. Default is $VAR_CHECK_TIME"
+  echo "$VAR_SCRIPTNAME -z n Run speedcheck every (n) connection checks if n > 0. Default is $VAR_SPEEDCHECK_FACTOR"
+  echo "$VAR_SCRIPTNAME -u            URL/Host to check, default is $VAR_HOST"
   echo "$VAR_SCRIPTNAME -w                                  Enable the remote webinteface"
   echo "$VAR_SCRIPTNAME -p                  Specify an optional port for the webinterface"  
   echo "$VAR_SCRIPTNAME -i                           Install netcheck as a system service"
@@ -90,7 +98,7 @@ PRINT_DISCONNECTED() {
 }
 
 DISCONNECTED_EVENT_HOOK() {
-  if [[ $VAR_ACT_ON_DISCONNECT = true ]]; then :
+  if [[ $VAR_ACT_ON_DISCONNECT = true ]]; then
     COMMAND="$VAR_DISCONNECT_SCRIPT &"
     echo -e $COLOR_RED"$STRING_2 EXEC $COMMAND"$COLOR_RESET
     eval "$COMMAND"
@@ -103,7 +111,7 @@ PRINT_RECONNECTED() {
 }
 
 RECONNECTED_EVENT_HOOK() {
-  if [[ $VAR_ACT_ON_RECONNECT = true ]]; then :
+  if [[ $VAR_ACT_ON_RECONNECT = true ]]; then
     COMMAND="$VAR_RECONNECT_SCRIPT $1 &"
     echo -e $COLOR_RED"$STRING_1 EXEC $COMMAND"$COLOR_RESET
     eval "$COMMAND"
@@ -133,26 +141,31 @@ START_WEBSERVER() {
     VAR_PYTHON_EXEC=python
   fi
 
+  echo VAR_PYTHON_EXEC is $VAR_PYTHON_EXEC
+  echo VAR_WEB_PORT is $VAR_WEB_PORT
+
   # Find python version and start corresponding webserver
   VAR_PYTHON_VERSION=$($VAR_PYTHON_EXEC -c 'import sys; print(sys.version_info[0])')
   case $VAR_PYTHON_VERSION in
     2)
-      (cd $VAR_SCRIPTLOC/log; $VAR_PYTHON_EXEC -m SimpleHTTPServer $1 &) &> /dev/null  
+      #(cd $VAR_SCRIPTLOC/log; $VAR_PYTHON_EXEC -m SimpleHTTPServer $1 &) &> /dev/null  
+      (cd $VAR_SCRIPTLOC/log; $VAR_PYTHON_EXEC -m SimpleHTTPServer $1 &)
     ;;
     3)
-      (cd $VAR_SCRIPTLOC/log; $VAR_PYTHON_EXEC -m http.server $1 &) &> /dev/null
+      #(cd $VAR_SCRIPTLOC/log; $VAR_PYTHON_EXEC -m http.server $1 &) &> /dev/null
+      (cd $VAR_SCRIPTLOC/log; $VAR_PYTHON_EXEC -m http.server $1 &)
     ;;
   esac
 }
 
 SETUP_WEBSERVER() {
-  if [[ $VAR_ENABLE_WEBINTERFACE = true ]]; then :
-    if [[ $VAR_CUSTOM_LOG = true ]]; then :
+  if [[ $VAR_ENABLE_WEBINTERFACE = true ]]; then
+    if [[ $VAR_CUSTOM_LOG = true ]]; then
       echo -e "Web Interface:    $COLOR_RED Not Available $COLOR_RESET"
       echo -e "Custom log destinations are not supported by webinterface"
     else
       echo -e "Web Interface:    $COLOR_GREEN Enabled $COLOR_RESET"
-      if [[ $VAR_CUSTOM_WEB_PORT = false ]]; then :
+      if [[ $VAR_CUSTOM_WEB_PORT = false ]]; then
         echo -e "                   http://localhost:$VAR_WEB_PORT"
         GET_LOCAL_IP $VAR_WEB_PORT
         START_WEBSERVER $VAR_WEB_PORT
@@ -166,7 +179,7 @@ SETUP_WEBSERVER() {
 }
 
 CHECK_FOR_SPEEDTEST() {
-  if [[ $VAR_SPEEDTEST_DISABLED = false ]]; then :
+  if [[ $VAR_SPEEDTEST_DISABLED = false ]]; then
     if [ -f "$VAR_SCRIPTLOC/speedtest-cli.py" ] || [ -f "$VAR_SCRIPTLOC/speedtest-cli" ]; then
         echo -e "SpeedTest-CLI:    $COLOR_GREEN Installed $COLOR_RESET"
         VAR_SPEEDTEST_READY=true
@@ -197,33 +210,46 @@ INSTALL_SPEEDTEST() {
 }
 
 RUN_SPEEDTEST() {
-  $VAR_SCRIPTLOC/speedtest-cli.py --simple | sed 's/^/                                                 /' | tee -a $VAR_LOGFILE
+  (
+    echo '---'
+    date
+    $VAR_SCRIPTLOC/speedtest-cli.py --simple | sed 's/^/                                                 /'
+    echo '...'
+  ) | tee -a $VAR_LOGFILE
 }
 
 NET_CHECK() {
   while true; do
+    echo "VAR_SPEEDCHECK_FACTOR is $VAR_SPEEDCHECK_FACTOR"
+    echo "VAR_SPEEDCHECK_COUNTER is $VAR_SPEEDCHECK_COUNTER"
     # Check for network connection
     nohup wget -q --tries=5 --timeout=20 -O - $VAR_HOST > /dev/null 2>&1
-    if [[ $? -eq 0 ]]; then :
-      # We are currently online
+    if [[ $? -eq 0 ]]; then # We are currently online
       # Did we just reconnect?
-      if [[ $VAR_CONNECTED = false ]]; then :
+      if [[ $VAR_CONNECTED = false ]]; then
+        # We just connected
         PRINT_RECONNECTED
         VAR_DURATION=$SECONDS
         PRINT_DURATION
-        if [[ $VAR_SPEEDTEST_READY = true ]]; then :
+        if [[ $VAR_SPEEDTEST_READY = true ]]; then
           RUN_SPEEDTEST
+          VAR_SPEEDCHECK_COUNTER=$VAR_SPEEDCHECK_FACTOR
         fi
         PRINT_HR | tee -a $VAR_LOGFILE
         SECONDS=0
         VAR_CONNECTED=true
         RECONNECTED_EVENT_HOOK $VAR_DURATION
+      else # We were already connected
+        if [[ $VAR_SPEEDTEST_READY = true && $VAR_SPEEDCHECK_FACTOR -gt 0 && $VAR_SPEEDCHECK_COUNTER -lt 1 ]]; then
+          RUN_SPEEDTEST
+          VAR_SPEEDCHECK_COUNTER=$VAR_SPEEDCHECK_FACTOR
+        elif [[ $VAR_SPEEDTEST_READY = true && $VAR_SPEEDCHECK_COUNTER -gt 0 ]]; then
+          VAR_SPEEDCHECK_COUNTER=$((VAR_SPEEDCHECK_COUNTER - 1))
+        fi
       fi
     else
       # We are offline
-      if [[ $VAR_CONNECTED = false ]]; then :
-          # We were already disconnected
-        else
+      if [[ $VAR_CONNECTED = true ]]; then
           # We just disconnected
           PRINT_DISCONNECTED
           DISCONNECTED_EVENT_HOOK
@@ -280,17 +306,17 @@ EOL
 }
 
 CLEANUP() {
-  if [[ $VAR_INSTALL_AS_SERVICE = false ]]; then :
+  if [[ $VAR_INSTALL_AS_SERVICE = false ]]; then
     PRINT_LOGGING_TERMINATED
   fi
-  if [[ $VAR_ENABLE_WEBINTERFACE = true ]]; then :
+  if [[ $VAR_ENABLE_WEBINTERFACE = true ]]; then
     echo "Shutting down webinterface..."
     kill 0
   fi
 }
 
 trap CLEANUP EXIT
-while getopts "f:d:r:c:u:p:whelp-si" opt; do
+while getopts "f:d:r:c:z:u:p:whelp-si" opt; do
   case $opt in
     f)
       echo "Logging to custom file: $OPTARG"
@@ -310,6 +336,10 @@ while getopts "f:d:r:c:u:p:whelp-si" opt; do
     c)
       echo "Checking connection every: $OPTARG seconds"
       VAR_CHECK_TIME=$OPTARG
+      ;;
+    z)
+      echo "Running speedcheck every (n) connection checks $OPTARG checks iff n > 0"
+      VAR_SPEEDCHECK_FACTOR=$OPTARG
       ;;
     u)
       echo "Checking host: $OPTARG"
@@ -342,8 +372,16 @@ while getopts "f:d:r:c:u:p:whelp-si" opt; do
       ;;
   esac
 done
+#ACE set -x
 
-if [[ $VAR_INSTALL_AS_SERVICE = true ]]; then :
+echo "VAR_CHECK_TIME is $VAR_CHECK_TIME seconds"
+echo "VAR_ENABLE_WEBINTERFACE is $VAR_ENABLE_WEBINTERFACE"
+echo "VAR_LOGFILE is $VAR_LOGFILE"
+echo "VAR_SPEEDCHECK_DISABLED is $VAR_SPEEDCHECK_DISABLED"
+echo "VAR_SPEEDCHECK_FACTOR is $VAR_SPEEDCHECK_FACTOR"
+echo "VAR_WEB_PORT is $VAR_WEB_PORT"
+
+if [[ $VAR_INSTALL_AS_SERVICE = true ]]; then
   INSTALL_AS_SERVICE
 fi
 PRINT_HR
@@ -351,9 +389,12 @@ SETUP_WEBSERVER
 CHECK_FOR_SPEEDTEST
 PRINT_LOGDEST
 PRINT_LOGSTART
-if [[ $VAR_SPEEDTEST_READY = true ]]; then :
+if [[ $VAR_SPEEDTEST_READY = true ]]; then
   echo "$STRING_5" | tee -a $VAR_LOGFILE
   RUN_SPEEDTEST
   PRINT_HR | tee -a $VAR_LOGFILE
 fi
+
+VAR_SPEEDCHECK_COUNTER=$VAR_SPEEDCHECK_FACTOR
+
 NET_CHECK
