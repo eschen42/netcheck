@@ -220,8 +220,8 @@ RUN_SPEEDTEST() {
 
 NET_CHECK() {
   while true; do
-    echo "VAR_SPEEDCHECK_FACTOR is $VAR_SPEEDCHECK_FACTOR"
-    echo "VAR_SPEEDCHECK_COUNTER is $VAR_SPEEDCHECK_COUNTER"
+    #ACE echo "VAR_SPEEDCHECK_FACTOR is $VAR_SPEEDCHECK_FACTOR"
+    #ACE echo "VAR_SPEEDCHECK_COUNTER is $VAR_SPEEDCHECK_COUNTER"
     # Check for network connection
     nohup wget -q --tries=5 --timeout=20 -O - $VAR_HOST > /dev/null 2>&1
     if [[ $? -eq 0 ]]; then # We are currently online
