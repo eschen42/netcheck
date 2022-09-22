@@ -62,7 +62,8 @@
 ############################################################################
 #
 
-$define TIME " time="
+#$define TIME " time="
+$define TIME " Ping: "
 procedure main()
   local line, x, x_min, x_max, s, ss, n, sd, se
   #&dump := 1
@@ -78,6 +79,7 @@ procedure main()
     x_min >:= x
     x_max <:= x 
   }
+  write("Statistics for ping (milliseconds)")
   write("x_min = ", x_min, "; x_max = ", x_max, "; x_mean = ", s / n)
   sd := sqrt(s*s - ss)/(n - 1)
   se := sd/sqrt(n)

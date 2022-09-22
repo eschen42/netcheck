@@ -75,18 +75,20 @@ procedure main()
   s := ss := n := x_max := 0
   x_min := 1000
   while line := read() do line ? {
-    if 1 = upto('MTWFS')
-      then writes(line, " ")
+    write("LINK ", line[match("LINK ", line):0])
+    #ACE if 1 = upto('MTWFS')
+    #ACE   then writes(line, " ")
     tab(find(TIME)) | next
-    write(move(*TIME), x := tab(find(" "))) | next
+    (2 | write)(move(*TIME), x := tab(find(" "))) | next
     s  +:= x
     ss +:= x^2
     n  +:= 1
     x_min >:= x
     x_max <:= x 
   }
+  write("Statistics for download (megabits per second)")
   write("x_min = ", x_min, "; x_max = ", x_max, "; x_mean = ", s / n)
   sd := sqrt(s*s - ss)/(n - 1)
   se := sd/sqrt(n)
-  write("sd = ", sd, "; se = ",se)
+  write("sd = ", sd, "; se = ",se, "; n = ",n)
 end
