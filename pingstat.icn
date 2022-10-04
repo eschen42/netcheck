@@ -66,9 +66,12 @@
 $define TIME " Ping: "
 procedure main()
   local line, x, x_min, x_max, s, ss, n, sd, se
+  local x_minus_1, j, j_min, j_max, j_s, j_ss, j_n, j_sd, j_se
   #&dump := 1
   s := ss := n := x_max := 0
   x_min := 1000
+  j_s := j_ss := j_n := j_max := 0
+  j_min := 1000
   while line := read() do line ? {
     tab(find(TIME)) | next
     move(*TIME)
@@ -77,11 +80,24 @@ procedure main()
     ss +:= x^2
     n  +:= 1
     x_min >:= x
-    x_max <:= x 
+    x_max <:= x
+    if /x_minus_1 then x_minus_1 := x else {
+      j := x - x_minus_1
+      j_s  +:= j
+      j_ss +:= j^2
+      j_n  +:= 1
+      j_min >:= j
+      j_max <:= j
+    }
   }
   write("Statistics for ping (milliseconds)")
-  write("x_min = ", x_min, "; x_max = ", x_max, "; x_mean = ", s / n)
   sd := sqrt(s*s - ss)/(n - 1)
   se := sd/sqrt(n)
-  write("sd = ", sd, "; se = ",se)
+  write("x_min = ", x_min, "; x_max = ", x_max, "; x_mean = ", s / n,
+    "; sd = ", sd, "; se = ",se, "; n = ",n)
+  write("Statistics for jitter (milliseconds)")
+  sd := sqrt(j_s*j_s - j_ss)/(j_n - 1)
+  se := sd/sqrt(j_n)
+  write("j_min = ", j_min, "; j_max = ", j_max, "; j_mean = ", j_s / j_n,
+    "; j_sd = ", sd, "; j_se = ",se, "; n = ",j_n)
 end
