@@ -57,47 +57,96 @@
 #
 ############################################################################
 #
-# Links: none
+# Links: xcode # use xcode rather than xcodes to preserve record type-names
+# Includes: runningStats.icn, from https://github.com/eschen42/aceincl
 #
 ############################################################################
-#
 
+link xcode
+
+$include "runningStats.icn"
+# record welford_running(count, mean, M2)
+#   record accumulating online results without persisting raw data
+#
+# record welford_cumulative(n, mean, variance, sampleVariance, SD, SE)
+#   record of statistical results extracted from welford_running
+# 
+# procedure welford_new()
+#   produce an initialized welford_running record
+# 
+# procedure welford_add(W, x)
+#   produce an updated welford_running record
+#     - W a welford_running record
+#     - x the next value to add to the record
+# 
+# procedure welford_get(welford_running)
+#   produce welford_cumulative record summarizing normal statistics
+#   for the series of x provided to welford_add
+#     - welford_running a welford_running record updated by welford_add
+
+$define PERSIST "log/pingstat_welford.txt"
 #$define TIME " time="
 $define TIME " Ping: "
-procedure main()
-  local line, x, x_min, x_max, s, ss, n, sd, se
-  local x_minus_1, j, j_min, j_max, j_s, j_ss, j_n, j_sd, j_se
-  #&dump := 1
-  s := ss := n := x_max := 0
-  x_min := 1000
-  j_s := j_ss := j_n := j_max := 0
-  j_min := 1000
+procedure main(args)
+  local time_prefix
+  local line
+  local T_persist
+  local W_ping, stat_ping
+  local W_jitter, stat_jitter
+  local x, x_minus_1, x_max, x_min
+  local j, j_max, j_min
+  local f
+  time_prefix := \args[1] | TIME
+  if f := open(PERSIST, "r")
+    then {
+      T_persist := xdecode(f)
+      W_ping := T_persist["ping"]
+      W_jitter := T_persist["jitter"]
+      close(f)
+      }
+    else {
+      T_persist := table()
+      T_persist["ping"] := W_ping := welford_new() # get initialized welford_running
+      T_persist["jitter"] := W_jitter := welford_new() # ditto
+      }
+
+  j_max := x_max := 0
+  j_min := x_min := 1000
   while line := read() do line ? {
-    tab(find(TIME)) | next
-    move(*TIME)
+    write(line)
+    tab(find(time_prefix)) | next
+    move(*time_prefix)
     x   := tab(find(" ms")) | next
-    s  +:= x
-    ss +:= x^2
-    n  +:= 1
     x_min >:= x
     x_max <:= x
+    welford_add(W_ping, x)
     if /x_minus_1 then x_minus_1 := x else {
       j := x - x_minus_1
-      j_s  +:= j
-      j_ss +:= j^2
-      j_n  +:= 1
       j_min >:= j
       j_max <:= j
+      welford_add(W_jitter, j)
+      }
     }
-  }
+
+  # record welford_running(count, mean, M2)
+  if f := open(PERSIST, "w")
+    then {
+      xencode(T_persist, f)
+      close(f)
+      }
+
+  # record welford_cumulative(n, mean, variance, sampleVariance, SD, SE)
+  stat_ping := welford_get(W_ping)
+  stat_jitter := welford_get(W_jitter)
+
+  write("---")
   write("Statistics for ping (milliseconds)")
-  sd := sqrt(s*s - ss)/(n - 1)
-  se := sd/sqrt(n)
-  write("x_min = ", x_min, "; x_max = ", x_max, "; x_mean = ", s / n,
-    "; sd = ", sd, "; se = ",se, "; n = ",n)
+  write("x_min = ", x_min, "; x_max = ", x_max, "; x_mean = ", stat_ping.mean,
+    "; sd = ", stat_ping.SD, "; se = ", stat_ping.SE, "; n = ",stat_ping.n)
+  write("...")
+  write("---")
   write("Statistics for jitter (milliseconds)")
-  sd := sqrt(j_s*j_s - j_ss)/(j_n - 1)
-  se := sd/sqrt(j_n)
-  write("j_min = ", j_min, "; j_max = ", j_max, "; j_mean = ", j_s / j_n,
-    "; j_sd = ", sd, "; j_se = ",se, "; n = ",j_n)
+  write("j_min = ", j_min, "; j_max = ", j_max, "; j_mean = ", stat_jitter.mean,
+    "; sd = ", stat_jitter.SD, "; se = ", stat_jitter.SE, "; n = ",stat_jitter.n)
+  write("...")
 end
