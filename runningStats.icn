@@ -71,13 +71,22 @@ end
 
 procedure welford_get(welford_running) # convert normal statistics
   local M2, n, mean, variance, sampleVariance, SD, SE
-  if welford_running.count < 2 then fail
+  #ACE if welford_running.count < 2 then fail
   n := welford_running.count
-  mean := welford_running.mean / n
+  mean := welford_running.mean
   M2 := welford_running.M2
-  variance := M2 / n
-  sampleVariance :=  M2 / (n - 1)
+  variance := 
+    if n > 0
+      then M2 / n
+      else 0
+  sampleVariance :=
+    if n > 1
+      then M2 / (n - 1)
+      else 0
   SD := sqrt(sampleVariance)
-  SE := SD / sqrt(n)
+  SE :=
+    if n > 0
+      then SD / sqrt(n)
+      else SD
   return welford_cumulative(n, mean, variance, sampleVariance, SD, SE) 
 end
