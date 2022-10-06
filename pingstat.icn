@@ -221,7 +221,6 @@ procedure main(args)
   T_persist["stat_ping"] := stat_ping 
   T_persist["stat_jitter"] := stat_jitter 
   T_persist["stat_pctlost"] := stat_pctlost 
-  T_persist["prplost"] := prplost 
 
   write("---")
   write("Statistics for ping (milliseconds)")
