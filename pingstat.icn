@@ -62,7 +62,8 @@
 #
 ############################################################################
 
-link xcode
+link xcode # for xdecode/xencode
+link numbers # for round
 
 #$define USEXIMAGE
 $ifdef USEXIMAGE
@@ -98,6 +99,7 @@ $define TRANSMITTED " packets transmitted, "
 $define RECEIVED " packets received, "
 $define LOST "% packet loss"
 #$define TIME " Ping: "
+
 #4 packets transmitted, 4 packets received, 0.0% packet loss
 procedure xmit_recv(line, T_persist)
   local p, r, x, W_pctlost, prplost
@@ -166,6 +168,12 @@ procedure persist(T_persist)
   return T_persist
 end
 
+procedure decimals(f, n, r) #: reduce precision of f to n places, r radix
+  local shift
+  shift := (\r | 10.0) ^ n
+  return round(shift * f) / shift
+end
+
 procedure main(args)
   local time_prefix
   local line
@@ -175,6 +183,7 @@ procedure main(args)
   local W_jitter, stat_jitter
   local W_pctlost, stat_pctlost
   local prplost, jitter_minmax, ping_minmax
+  local this_jit_minmax, jitter_n
   local x, x_minus_1
   local j
 
@@ -186,8 +195,10 @@ procedure main(args)
   W_jitter := T_persist["jitter"]
   W_pctlost := T_persist["pctlost"]
   prplost := T_persist["prplost"]
-  jitter_minmax := T_persist["jitter_minmax"]
   ping_minmax := T_persist["ping_minmax"]
+  jitter_minmax := T_persist["jitter_minmax"]
+  this_jit_minmax := range(10000, 0)
+  jitter_n := 0
 
   $ifdef USEXIMAGE
   write(ximage(T_persist))
@@ -196,6 +207,8 @@ procedure main(args)
   #&trace := -1
   while line := read() do line ? {
     write(line)
+    if find("DUP", line)
+      then next
     if xmit_recv(line, T_persist)
       then next
     tab(find(time_prefix)) | next
@@ -205,10 +218,13 @@ procedure main(args)
     ping_minmax.max <:= x
     welford_add(W_ping, x)
     if \x_minus_1
-      then{
+      then {
         j := abs(x - x_minus_1)
         jitter_minmax.min >:= j
         jitter_minmax.max <:= j
+        this_jit_minmax.min >:= j
+        this_jit_minmax.max <:= j
+        jitter_n +:= 1
         welford_add(W_jitter, j)
         }
     x_minus_1 := x
@@ -223,26 +239,46 @@ procedure main(args)
   T_persist["stat_pctlost"] := stat_pctlost 
 
   write("---")
+  writes(&errout, &dateline, "  ")
+  write("\n...")
+  write("---")
   write("Statistics for ping (milliseconds)")
-  write("  ping min = ", ping_minmax.min, "; ping max = ", ping_minmax.max,
-    ";\n  ping mean = ", stat_ping.mean,
-    "; se = ", stat_ping.SE, "; sd = ", stat_ping.SD, "; n = ",stat_ping.n)
+  write(
+    "  ping min = ", ping_minmax.min,
+    "; ping max = ", ping_minmax.max,
+    "; n = ",stat_ping.n,
+    )
+  write(
+    "  ping mean = ", decimals(stat_ping.mean, 3),
+    "; se = ", decimals(stat_ping.SE, 3),
+    "; sd = ", decimals(stat_ping.SD, 3)
+    )
   write("...")
   write("---")
   write("Statistics for absolute value of jitter (milliseconds)")
-  write("  jitter min = ", jitter_minmax.min,
+  write(
+    "  overall: jitter mean = ", decimals(stat_jitter.mean, 3),
+    "; se = ", decimals(stat_jitter.SE, 3),
+    "; sd = ", decimals(stat_jitter.SD, 3)
+    )
+  write(
+    "           jitter min = ", jitter_minmax.min,
     "; jitter max = ", jitter_minmax.max,
-    ";\n  jitter mean = ", stat_jitter.mean,
-    "; se = ", stat_jitter.SE,
-    "; sd = ", stat_jitter.SD,
-    "; n = ",stat_jitter.n
+    "; jitter n = ", integer(stat_jitter.n)
+    )
+  writes("  thisrun: ")
+  write(&errout,
+    "jitter min = ", this_jit_minmax.min,
+    "; jitter max = ", this_jit_minmax.max,
+    "; jitter n = ", jitter_n
     )
   write("...")
   write("---")
   write("Statistics for packet-receipt (percent)")
-  write("  Percent Lost mean = ", stat_pctlost.mean,
-    "; se = ", stat_pctlost.SE, "; sd = ", stat_pctlost.SD,
-    "; n = ",stat_pctlost.n)
+  write("  Percent Lost mean = ", decimals(stat_pctlost.mean, 3),
+    "; se = ", decimals(stat_pctlost.SE, 3),
+    "; sd = ", decimals(stat_pctlost.SD, 3),
+    "; n = ", integer(stat_pctlost.n))
   write("  Total packets lost = ", prplost.trials - prplost.successes,
     ", out of ", prplost.trials, " packets transmitted.")
   write("...")
