@@ -218,6 +218,10 @@ RUN_SPEEDTEST() {
   ) | tee -a $VAR_LOGFILE
 }
 
+RUN_PINGTEST() {
+    ping -c 20 9.9.9.9 | ./pingstat 2> log/jitter.txt
+}
+
 NET_CHECK() {
   while true; do
     #ACE echo "VAR_SPEEDCHECK_FACTOR is $VAR_SPEEDCHECK_FACTOR"
@@ -240,6 +244,7 @@ NET_CHECK() {
         VAR_CONNECTED=true
         RECONNECTED_EVENT_HOOK $VAR_DURATION
       else # We were already connected
+        RUN_PINGTEST
         if [[ $VAR_SPEEDTEST_READY = true && $VAR_SPEEDCHECK_FACTOR -gt 0 && $VAR_SPEEDCHECK_COUNTER -lt 1 ]]; then
           RUN_SPEEDTEST
           VAR_SPEEDCHECK_COUNTER=$VAR_SPEEDCHECK_FACTOR
@@ -389,6 +394,7 @@ SETUP_WEBSERVER
 CHECK_FOR_SPEEDTEST
 PRINT_LOGDEST
 PRINT_LOGSTART
+RUN_PINGTEST
 if [[ $VAR_SPEEDTEST_READY = true ]]; then
   echo "$STRING_5" | tee -a $VAR_LOGFILE
   RUN_SPEEDTEST
