@@ -219,7 +219,7 @@ RUN_SPEEDTEST() {
 }
 
 RUN_PINGTEST() {
-    ping -c 20 9.9.9.9 | ./pingstat 2> log/jitter.txt
+    ping -c 20 9.9.9.9 | ./pingstat 2>> log/jitter.txt
 }
 
 NET_CHECK() {
