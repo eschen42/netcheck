@@ -1,7 +1,7 @@
 #!/bin/env icon
 #
 # TL;DR usage:
-# - if icon is on your path:  cat log/connection.log | ./downstat.icn
+# - if icon is on your path:  cat log/connection.log | ./downstat
 # - otherwise:  cat log/connection.log | path/to/icont -u downstat.icn -x
 #
 ############################################################################
